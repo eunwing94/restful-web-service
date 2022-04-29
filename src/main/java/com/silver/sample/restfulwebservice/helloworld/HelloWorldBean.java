@@ -1,4 +1,4 @@
-package com.silver.sample.restfulwebservice;
+package com.silver.sample.restfulwebservice.helloworld;
 //lombok
 
 
