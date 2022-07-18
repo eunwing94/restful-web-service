@@ -21,12 +21,17 @@ Restful API Web Service
 
 필터 메서드의 종류는 세가지이다.
 
->> public interface Filter {
+public interface Filter {
+
     public default void init(FilterConfig filterConfig) throws ServletException {}
+
     public void doFilter(ServletRequest request, ServletResponse response,
             FilterChain chain) throws IOException, ServletException;
+
     public default void destroy() {}
 }
+
+
  (1) init 메소드
   : init 메소드는 필터 객체를 초기화하고 서비스에 추가하기 위한 메소드이다. 웹 컨테이너가 1회 init 메소드를 호출하여 필터 객체를 초기화하면 이후의 요청들은 doFilter를 통해 처리함
  (2) doFilter 메소드
