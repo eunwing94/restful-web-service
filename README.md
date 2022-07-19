@@ -83,18 +83,32 @@ preHandle의 3번째 파라미터인 handler 파라미터는 핸들러 매핑이
  
  
  ** 여기서 주의할 것!!!
- UserInfoInterceptor.java 를 선언해주고, 해당 인터셉터로 넘겨주는 부분이 WebConfig.java이다.
- WebConfig.java 를 보면
- (기존)
+ UserInfoInterceptor.java 를 선언해주고, 해당 인터셉터로 넘겨주는 부분이 SpringWebConfig.java이다.
+ 
+  (기존)
+// SpringWebConfig.java 
  @Configuration
-public class MvcConfig implements WebMvcConfigurer {
+public class SpringWebConfig implements WebMvcConfigurer {
  
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new UserInfoInterceptor())
                 .addPathPatterns("/**")//해당경로 접근전에 인터셉터가 가로첸다
-                .excludePathPatterns("/css/**", "/fonts/**", "/img/**", "/js/**","/scss/**","/vendor/**", "/login/**","/new/**", "/loginAction"); 
+                .excludePathPatterns("/css/**", "/fonts/**", "/img/**", "/js/**","/scss/**",
+                                    "/vendor/**", "/login/**","/new/**"); // 정적메서드, 로그인 제외 
     }
+    
+}
+
+//UserInfoInterceptor.java
+publiv class UserInfoInterceptor extends HandlerInterceptor {
+
+    public preHandle(){}
+    // 이 세개중 여기 postHandle 해야함
+    // 그 이유는 얘는 컨트롤러 호출 이후 인터셉트해주는데 ModelAndView 값도 반환해주기 때문에 View 즉 화면이 어떤건지도 알 수 있어,
+    // 어떤 화면의 어떤 API를 호출하는지 알 수 있음
+    public postHandle(){}
+    public afterCompletion(){}
     
 }
  
@@ -104,8 +118,9 @@ public class MvcConfig implements WebMvcConfigurer {
  Spring Container에서 이 Interceptor를 관리하지 못하는 것이다.
  
  고로 아래와 같이 @AutoWired 의존성을 주입한 interceptor를 선언하여 넣어주도록 한다.
- 
- public class MvcConfig implements WebMvcConfigurer {
+
+// SpringWebConfig.java
+ public class SpringWebConfig implements WebMvcConfigurer {
  
     @Autowired
     private UserInfoInterceptor userInfoInterceptor;
@@ -114,10 +129,90 @@ public class MvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(userInfoInterceptor)
                 .addPathPatterns("/**")//해당경로 접근전에 인터셉터가 가로첸다
-                .excludePathPatterns("/css/**", "/fonts/**", "/img/**", "/js/**","/scss/**","/vendor/**", "/login/**","/new/**", "/loginAction"); 
+                .excludePathPatterns("/css/**", "/fonts/**", "/img/**", "/js/**","/scss/**",
+                                    "/vendor/**", "/login/**","/new/**"); // 정적메서드, 로그인 제외
     }
     
 }
+
+//UserInfoInterceptor.java
+publiv class UserInfoInterceptor extends HandlerInterceptor {
+
+    public preHandle(){}
+    // 이 세개중 여기 postHandle 해야함
+    // 그 이유는 얘는 컨트롤러 호출 이후 인터셉트해주는데 ModelAndView 값도 반환해주기 때문에 View 즉 화면이 어떤건지도 알 수 있어,
+    // 어떤 화면의 어떤 API를 호출하는지 알 수 있음
+    public postHandle(){}
+    public afterCompletion(){}
+    
+}
+
+
+그런데 이렇게 하면 또 문제가 있는데, 그거슨 바로 이렇게되면 logout은 session이 끊겨버리기 때문에 컨트롤러 호출 이후인 postHandle에서 처리해주면
+session 값을 못가져옴..
+그러므로 애는 컨트롤러 호출 전엔 preHandle 에서 해주도록 함.
+
+//UserInfoInterceptor.java
+publiv class UserInfoInterceptor extends HandlerInterceptor {
+
+     // 로그아웃은 preHandle 해야함
+    // 그 이유는 얘는 컨트롤러 호출 이전에 인터셉트해주므로 session 이 끊기기 전에 로그를 남길수있음
+    public preHandle(){}
+    // 이 세개중 여기 postHandle 해야함
+    // 그 이유는 얘는 컨트롤러 호출 이후 인터셉트해주는데 ModelAndView 값도 반환해주기 때문에 View 즉 화면이 어떤건지도 알 수 있어,
+    // 어떤 화면의 어떤 API를 호출하는지 알 수 있음
+    public postHandle(){}
+    public afterCompletion(){}
+    
+}
+
+그 외 두가지 방법이 있다.
+
+첫째, 
+인터셉터를 새로 만들어 준다.(ex. LoginOutInfoInterceptor)
+그럼 위의 소스는 아래처러 더 깔끔함
+ 
+ public class MvcConfig implements WebMvcConfigurer {
+ 
+    @Autowired
+    private UserInfoInterceptor userInfoInterceptor;
+    // 추가
+    @Autowired
+    private LoginOutInfoInterceptor loginoutInfoInterceptor;
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(userInfoInterceptor)
+                .addPathPatterns("/**")//해당경로 접근전에 인터셉터가 가로첸다
+                .excludePathPatterns("/css/**", "/fonts/**", "/img/**", "/js/**","/scss/**",
+                                    "/vendor/**", "/login/**","/new/**", "/loginAction", "/logout"); 
+                
+        // 추가
+        registry.addInterceptor(loginoutInfoInterceptor)
+                .addPathPatterns("/loginAction", "/logout");
+        
+    }
+    
+}
+
+publiv class LoginOutInfoInterceptor extends HandlerInterceptor {
+
+    public preHandle(){}
+    public postHandle(){}
+    public afterCompletion(){}
+    
+}
+publiv class UserInfoInterceptor extends HandlerInterceptor {
+
+    public preHandle(){}
+    public postHandle(){}
+    public afterCompletion(){}
+    
+}
+
+
+
+둘째,
+로그인핸들러 부분에서 파라미터를 받아 로그등록 서비스를 직접 호출한다.
 
 그럼 DB service 호출도 무리없이 가능하다.
 
